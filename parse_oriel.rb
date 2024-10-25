@@ -10,6 +10,7 @@ require 'open-uri'
 $stdout.sync = true
 $stderr.sync = true
 
+# pretend to be Google crawler
 USER_AGENT = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) ' \
              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1.2.3.4 Mobile Safari/537.36 ' \
              '(compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
@@ -55,13 +56,15 @@ def parse_article(article_id, page)
   image_counter = 0
   link_counter = 0
 
-  # remove stuff we don't want, get Welsh URL if exists
+  # remove stuff we don't want
   page.at_css('.et-no-big-image').at_css('.meta-info').remove
   page.at_css('.sharedaddy').remove
+  # articles 1 - 12 have a link to Welsh version
   if article_id <= 12
     $articles[article_id]['cy_url'] = page.at_css('.wp-block-button').css('a').attr('href').text
     page.at_css('.wp-block-button').remove
   end
+  # these articles have a link to a Welsh version in a different style
   if [18,19,20,21,22,24,25,26].include?(article_id)
     $articles[article_id]['cy_url'] = page.at_css('.small-button').attr('href')
     page.at_css('.small-button').remove
@@ -73,6 +76,7 @@ def parse_article(article_id, page)
     # skip if no href
     next unless a.attr('href')
     link_counter += 1
+    # insert link placeholder to body
     a.before("<strong>{{LINK #{link_counter}}}</strong>")
     $articles[article_id]['links'] << a.attr('href')
   end
@@ -80,12 +84,15 @@ def parse_article(article_id, page)
   # find images
   $articles[article_id]['images'] = []
   page.at_css('.et-no-big-image').css('.wp-block-image').css('figure').each do |image|
+    # these are the footer images, skip them
     next if image.css('img').attr('src').text.include?('SPF-Footer-Logos')
     image_counter += 1
+    # insert image placeholder to body
     image.at_css('img').add_child("<strong>{{IMAGE #{image_counter}}}</strong>\n")
     $articles[article_id]['images'] << image.at_css('img').attr('src')
   end
 
+  # remove tabs, duplicate newlines and duplicate spaces from body
   article_body = page.at_css('.et-no-big-image').text.gsub(/\t+/, '').gsub(/\n{2,}/, "\n\n").squeeze(' ')
   $articles[article_id]['body'] = article_body
 end
@@ -95,8 +102,10 @@ end
 
 home_page = get_url(HOME_URL)
 parse_home_page(home_page)
+# print out JSON representation of site
 puts JSON.pretty_generate(JSON.parse($articles.to_json))
 
+# go through the articles and write the elements to disk
 $articles.each do |article_id, article|
   STDERR.puts article_id
   article_dir = "#{OUTPUT_DIR}/#{article_id.to_s}"
