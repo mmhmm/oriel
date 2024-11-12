@@ -83,13 +83,35 @@ def parse_article(article_id, page)
 
   # find images
   $articles[article_id]['images'] = []
-  page.at_css('.et-no-big-image').css('.wp-block-image').css('figure').each do |image|
-    # these are the footer images, skip them
-    next if image.css('img').attr('src').text.include?('SPF-Footer-Logos')
-    image_counter += 1
-    # insert image placeholder to body
-    image.at_css('img').add_child("<strong>{{IMAGE #{image_counter}}}</strong>\n")
-    $articles[article_id]['images'] << image.at_css('img').attr('src')
+  if article_id < 18
+    page.at_css('.et-no-big-image').css('.wp-block-image').css('figure').each do |image|
+      # these are the footer images, skip them
+      next if image.css('img').attr('src').text.include?('SPF-Footer-Logos')
+      image_counter += 1
+      # insert image placeholder to body
+      image.at_css('img').add_child("<strong>{{IMAGE #{image_counter}}}</strong>\n")
+      $articles[article_id]['images'] << image.at_css('img').attr('src')
+    end
+  else
+    # code for 'aligncenter' images
+    page.css('.aligncenter').each do |image|
+      image_counter += 1
+      #pp image_counter
+      #pp image
+      if image.name == 'img'
+        #pp image.attr('src')
+        #image.before("<strong>{{IMAGE #{image_counter}}}</strong>")
+        $articles[article_id]['images'] << image.attr('src')
+      elsif image.name == 'div'
+        # stuff dealing with nested in a div
+        image.children.each do |child|
+          next unless child.name == 'img'
+          #pp child.attr('src')
+          $articles[article_id]['images'] << child.attr('src')
+        end
+      end
+      image.before("<strong>{{IMAGE #{image_counter}}}</strong>")
+    end
   end
 
   # remove tabs, duplicate newlines and duplicate spaces from body
@@ -136,7 +158,7 @@ $articles.each do |article_id, article|
     img_uri = URI.parse(URI::Parser.new.escape(image))
     file_extension = File.extname(image)
     img_r = HTTParty.get(img_uri)
-    File.open("#{article_dir}/images/#{image_counter}-#{image_suffix}#{file_extension}", 'wb') do |f|
+    File.open("#{article_dir}/images/#{image_suffix}-#{image_counter}#{file_extension}", 'wb') do |f|
       f.write(img_r)
     end
   end
